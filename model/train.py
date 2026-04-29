@@ -1,4 +1,5 @@
 import os
+import sys
 import json
 import argparse
 import torch
@@ -6,6 +7,10 @@ import torch.optim as optim
 from torch.utils.data import TensorDataset, DataLoader
 import numpy as np
 import pandas as pd
+
+# Add root directory to path for cloud deployment
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from data.generator import HIsarnaDataGenerator
 from model.preprocessing import HIsarnaPreprocessor
 from model.pinn import HIsarnaPINN, PINNLoss
