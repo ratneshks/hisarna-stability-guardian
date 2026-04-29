@@ -261,8 +261,16 @@ def get_stability_history(seconds: int = 300):
 def get_physics_residuals(seconds: int = 60):
     return residuals_history[-seconds:]
 
+@app.get("/")
+async def root():
+    return {"message": "HIsarna Stability Guardian API is Online", "docs": "/docs"}
+
+@app.get("/api/health")
+async def health_check():
+    return {"status": "ok", "model_loaded": model_loaded, "history_len": len(generator.history)}
+
 @app.get("/api/training-loss")
-def get_training_loss():
+async def get_training_loss():
     try:
         with open("model/logs/training_loss.json", "r") as f:
             return json.load(f)

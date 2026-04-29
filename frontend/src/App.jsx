@@ -71,6 +71,15 @@ export default function App() {
     return () => { if(ws.current) ws.current.close(); };
   }, []);
 
+  const manualReconnect = () => {
+    if(ws.current) ws.current.close();
+    setConnected(false);
+    setData(null);
+    // Connection will be re-established by the onclose logic or by a fresh connectWs call
+    // but for immediate action we can just reload
+    window.location.reload();
+  };
+
   useEffect(() => {
     const int = setInterval(() => setDemoTimer(p => p + 1), 1000);
     return () => clearInterval(int);
@@ -102,7 +111,23 @@ ${Object.entries(data?.sensors || {}).map(([k,v]) => `${k}: ${v.toFixed(3)}`).jo
     a.click();
   };
 
-  if (!data) return <div className="flex h-screen items-center justify-center bg-slate-900 text-white font-mono">Connecting to HIsarna Core...</div>;
+  if (!data) return (
+    <div className="flex flex-col h-screen items-center justify-center bg-slate-900 text-white font-mono space-y-6">
+      <div className="flex items-center space-x-3">
+        <div className="h-4 w-4 bg-blue-500 animate-ping rounded-full"></div>
+        <div className="text-xl">Connecting to HIsarna Core...</div>
+      </div>
+      <div className="text-slate-500 text-xs text-center max-w-md">
+        If this takes more than 30 seconds, the backend might be waking up from cold sleep.
+      </div>
+      <button 
+        onClick={() => window.location.reload()}
+        className="px-6 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded text-sm transition-all"
+      >
+        Retry Connection
+      </button>
+    </div>
+  );
 
   const { sensors, predictions, stability, physics_residuals, recommendation, active_alerts } = data;
 
