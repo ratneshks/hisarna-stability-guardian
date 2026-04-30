@@ -165,59 +165,59 @@ async def background_simulation():
             t_in = preprocessor.process_window(df_win, current_time=time.time()).unsqueeze(0)
             
             # Predict
-            with torch.no_grad():
-                # We need gradients for physics, so we enable it just for input
-                t_in.requires_grad_(True)
-                y_pred, latent = model(t_in, return_latent=True)
+            # We NEED gradients enabled to compute Navier-Stokes and Heat Transfer residuals
+            torch.set_grad_enabled(True)
+            t_in.requires_grad_(True)
+            y_pred, latent = model(t_in, return_latent=True)
+            
+            # Compute residuals
+            y_true = torch.zeros_like(y_pred)
+            _, L_data, L_NS, L_HT, L_BC = criterion(t_in, y_pred, y_true)
+            
+            # Disable grad for data extraction
+            torch.set_grad_enabled(False)
+            latent_np = latent.detach().numpy()[0]
+            y_pred_np = y_pred.detach().numpy()[0]
                 
-                # Compute residuals
-                # For demo, we just compute them without true labels to get L_NS, L_HT
-                # Dummy target
-                y_true = torch.zeros_like(y_pred)
-                _, L_data, L_NS, L_HT, L_BC = criterion(t_in, y_pred, y_true)
-                
-                latent_np = latent.detach().numpy()[0]
-                y_pred_np = y_pred.detach().numpy()[0]
-                
-                d_norm = stability_env.compute_distance(latent_np)
-                status, color = stability_env.classify(d_norm)
-                
-                preds = {
-                    "u_pred": float(y_pred_np[0]),
-                    "v_pred": float(y_pred_np[1]),
-                    "T_pred": float(y_pred_np[2]),
-                    "P_pred": float(y_pred_np[3]),
-                    "phi_O2_pred": float(y_pred_np[4]),
-                    "phi_CO_pred": float(y_pred_np[5]),
-                    "stability_score": float(y_pred_np[6]),
-                    "anomaly_magnitude": float(y_pred_np[7])
-                }
-                
-                stab_info = {
-                    "status": status,
-                    "mahalanobis_distance": float(d_norm * stability_env.d_95th_percentile),
-                    "normalized_distance": float(d_norm),
-                    "color": color
-                }
-                
-                res_info = {
-                    "L_NS": float(L_NS.item()),
-                    "L_HT": float(L_HT.item()),
-                    "L_data": float(L_data.item())
-                }
-                
-                rec = stability_env.get_recommendation(status, sensor_data)
-                
-                process_alerts(sensor_data, status, float(L_NS.item()))
-                
-                # Store history
-                ts = time.time()
-                stability_history.append({"timestamp": ts, **stab_info, "score": preds["stability_score"]})
-                residuals_history.append({"timestamp": ts, **res_info})
-                
-                # Keep history bounded
-                if len(stability_history) > 3600: stability_history.pop(0)
-                if len(residuals_history) > 3600: residuals_history.pop(0)
+            d_norm = stability_env.compute_distance(latent_np)
+            status, color = stability_env.classify(d_norm)
+            
+            preds = {
+                "u_pred": float(y_pred_np[0]),
+                "v_pred": float(y_pred_np[1]),
+                "T_pred": float(y_pred_np[2]),
+                "P_pred": float(y_pred_np[3]),
+                "phi_O2_pred": float(y_pred_np[4]),
+                "phi_CO_pred": float(y_pred_np[5]),
+                "stability_score": float(y_pred_np[6]),
+                "anomaly_magnitude": float(y_pred_np[7])
+            }
+            
+            stab_info = {
+                "status": status,
+                "mahalanobis_distance": float(d_norm * stability_env.d_95th_percentile),
+                "normalized_distance": float(d_norm),
+                "color": color
+            }
+            
+            res_info = {
+                "L_NS": float(L_NS.item()),
+                "L_HT": float(L_HT.item()),
+                "L_data": float(L_data.item())
+            }
+            
+            rec = stability_env.get_recommendation(status, sensor_data)
+            
+            process_alerts(sensor_data, status, float(L_NS.item()))
+            
+            # Store history
+            ts = time.time()
+            stability_history.append({"timestamp": ts, **stab_info, "score": preds["stability_score"]})
+            residuals_history.append({"timestamp": ts, **res_info})
+            
+            # Keep history bounded
+            if len(stability_history) > 3600: stability_history.pop(0)
+            if len(residuals_history) > 3600: residuals_history.pop(0)
 
         payload = {
             "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
