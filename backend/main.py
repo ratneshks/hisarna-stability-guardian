@@ -65,21 +65,25 @@ manager = ConnectionManager()
 def load_system():
     global model_loaded
     try:
+        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        checkpoints_dir = os.path.join(base_dir, "model", "checkpoints")
+        
         # Load preprocessor
-        with open("model/checkpoints/preprocessor.json", "r") as f:
+        with open(os.path.join(checkpoints_dir, "preprocessor.json"), "r") as f:
             pp_data = json.load(f)
             preprocessor.mu_dict = pp_data["mu_dict"]
             preprocessor.sigma_dict = pp_data["sigma_dict"]
             
         # Load stability env
-        with open("model/checkpoints/stability_env.json", "r") as f:
+        with open(os.path.join(checkpoints_dir, "stability_env.json"), "r") as f:
             env_data = json.load(f)
             stability_env.mu_stable = np.array(env_data["mu_stable"])
             stability_env.Sigma_inv = np.array(env_data["Sigma_inv"])
             stability_env.d_95th_percentile = env_data["d_95th_percentile"]
             
         # Load model
-        model.load_state_dict(torch.load("model/checkpoints/hisarna_pinn.pt"))
+        model_path = os.path.join(checkpoints_dir, "hisarna_pinn.pt")
+        model.load_state_dict(torch.load(model_path, map_location=torch.device('cpu')))
         model.eval()
         model_loaded = True
         print("Model and artifacts loaded successfully.")
@@ -148,10 +152,13 @@ async def background_simulation():
         generator._generate_step()
         sensor_data = generator.get_latest_reading()
         
-        preds = {}
+        preds = {
+            "stability_score": 0.0,
+            "anomaly_magnitude": 0.0
+        }
         stab_info = {"status": "STABLE", "mahalanobis_distance": 0.0, "normalized_distance": 0.0, "color": "#22c55e"}
-        res_info = {"L_NS": 0.0, "L_HT": 0.0, "L_data": 0.0}
-        rec = "Initializing..."
+        res_info = {"L_NS": 0.001, "L_HT": 0.001, "L_data": 0.0}
+        rec = "Initializing (Gathering 30s of sensor data)..."
         
         if model_loaded and len(generator.history) >= 30:
             df_win = generator.get_history(30)
